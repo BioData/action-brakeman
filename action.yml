@@ -59,11 +59,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Check out the code
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ github.head_ref }}
-
     - name: Extract PR metadata
       shell: sh
       env:
