@@ -33,11 +33,7 @@ if [[ "$INPUT_SKIP_INSTALL" == "false" ]]; then
     BRAKEMAN_VERSION="$INPUT_BRAKEMAN_VERSION"
   fi
 
-  if [ -n "$BRAKEMAN_VERSION" ]; then
-    gem install -N brakeman --version "$BRAKEMAN_VERSION"
-  else
-    gem install -N brakeman
-  fi
+  gem install -N brakeman --version "$BRAKEMAN_VERSION"
 
   echo "::endgroup::"
 fi
