@@ -12,6 +12,9 @@ echo "🔍 Base SHA: $merge_base_sha"
 echo "📝 Changed Ruby files:"
 echo "$changed_files"
 
+echo "Fetching merge base (shallowly)..."
+git fetch --depth 1 origin "$merge_base_sha"
+
 # Normalize paths for comparison
 changed_files_json=$(echo "$changed_files" | jq -R . | jq -s .)
 
