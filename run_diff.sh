@@ -3,40 +3,66 @@ set -euo pipefail
 
 merge_base_ref="$1"
 merge_base_sha="$2"
-changed_files_colon="$3"
+changed_files_csv="$3"
 
-changed_files="$(echo "$changed_files_colon" | tr ':' '\n')"
+IFS=',' read -r -a changed_files_array <<< "$changed_files_csv"
 
 echo "🔍 Base ref: $merge_base_ref"
 echo "🔍 Base SHA: $merge_base_sha"
 echo "📝 Changed Ruby files:"
-echo "$changed_files"
+printf '%s\n' "${changed_files_array[@]}"
 
-echo "Fetching merge base (shallowly)..."
+echo "📥 Fetching base commit..."
 git fetch --depth 1 origin "$merge_base_sha"
 
-# Normalize paths for comparison
-changed_files_json=$(echo "$changed_files" | jq -R . | jq -s .)
+# Filter existing files on current branch
+existing_current=()
+for file in "${changed_files_array[@]}"; do
+  if [[ -f "$file" ]]; then
+    existing_current+=("$file")
+  fi
+done
 
-echo "🚨 Running Brakeman on current PR branch..."
-${BUNDLE_EXEC}brakeman -f json --no-exit-on-warn > current.json || true
+if [[ "${#existing_current[@]}" -eq 0 ]]; then
+  echo "⚠️ No changed Ruby files exist on current branch. Skipping Brakeman."
+  exit 0
+fi
 
+current_csv="$(IFS=','; echo "${existing_current[*]}")"
+
+# Run Brakeman on current branch
+echo "🚨 Running Brakeman on current PR branch (only changed files)..."
+${BUNDLE_EXEC}brakeman --no-exit-on-warn -f json --only-files "$current_csv" > current.json || true
+
+# Checkout base commit
 echo "🔄 Checking out base commit: $merge_base_sha"
 git checkout --quiet "$merge_base_sha"
 
-echo "🚨 Running Brakeman on base commit..."
-${BUNDLE_EXEC}brakeman -f json --no-exit-on-warn > base.json || true
+# Filter existing files on base branch
+existing_base=()
+for file in "${changed_files_array[@]}"; do
+  if [[ -f "$file" ]]; then
+    existing_base+=("$file")
+  fi
+done
 
+if [[ "${#existing_base[@]}" -eq 0 ]]; then
+  echo "⚠️ No changed Ruby files exist on base branch. Skipping Brakeman."
+  exit 0
+fi
+
+base_csv="$(IFS=','; echo "${existing_base[*]}")"
+
+# Run Brakeman on base commit
+echo "🚨 Running Brakeman on base commit (only changed files)..."
+${BUNDLE_EXEC}brakeman --no-exit-on-warn -f json --only-files "$base_csv" > base.json || true
+
+# Go back to PR HEAD
 git checkout --quiet -
 
-# Filter warnings to only those in changed files
-echo "📊 Comparing warnings for changed files only..."
-
-current_count=$(jq --argjson files "$changed_files_json" '
-  .warnings | map(select(.file as $f | $files | index($f))) | length' current.json)
-
-base_count=$(jq --argjson files "$changed_files_json" '
-  .warnings | map(select(.file as $f | $files | index($f))) | length' base.json)
+# Compare JSONs
+current_count=$(jq '.warnings | length' current.json)
+base_count=$(jq '.warnings | length' base.json)
 
 echo "📊 Brakeman warning count (only in changed files): current=$current_count, base=$base_count"
 
@@ -47,5 +73,3 @@ fi
 
 echo "❌ You introduced $((current_count - base_count)) new Brakeman warnings in changed files."
 exit 1
-
-#### WORKING GOOD

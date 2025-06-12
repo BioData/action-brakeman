@@ -69,7 +69,7 @@ runs:
 
         changed_files="$(gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path')"
         changed_ruby_files="$(echo "$changed_files" | grep -v '^vendor/' | grep '\.rb$' || true)"
-        echo "CHANGED_RUBY_FILES=$(echo "$changed_ruby_files" | tr '\n' ':' )" >> $GITHUB_ENV
+        echo "CHANGED_RUBY_FILES=$(echo "$changed_ruby_files" | paste -sd "," -)" >> $GITHUB_ENV
 
     - run: $GITHUB_ACTION_PATH/script.sh
       shell: sh
