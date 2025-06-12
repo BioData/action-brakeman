@@ -12,16 +12,14 @@ echo "🔍 Base SHA: $merge_base_sha"
 echo "📝 Changed Ruby files:"
 echo "$changed_files"
 
-# Run Brakeman on current PR branch
 echo "🚨 Running Brakeman on current PR branch..."
-brakeman -f json --no-exit-on-warn > current.json || true
+${BUNDLE_EXEC}brakeman -f json --no-exit-on-warn > current.json || true
 
-# Checkout base branch to compare
 echo "🔄 Checking out base commit: $merge_base_sha"
 git checkout --quiet "$merge_base_sha"
 
 echo "🚨 Running Brakeman on base commit..."
-brakeman -f json --no-exit-on-warn > base.json || true
+${BUNDLE_EXEC}brakeman -f json --no-exit-on-warn > base.json || true
 
 # Return to PR head
 git checkout --quiet -
