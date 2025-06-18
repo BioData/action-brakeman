@@ -1,6 +1,7 @@
 name: 'Run brakeman with reviewdog'
-description: '🐶 Run brakeman with reviewdog on pull requests to improve code review experience.'
-author: 'mgrachev (reviewdog)'
+description: '🐶 Run brakeman in full or diff mode. Use reviewdog for annotations, or fail on new issues only.'
+author: 'mgrachev (reviewdog), extended by Labguru'
+
 inputs:
   github_token:
     description: 'GITHUB_TOKEN'
@@ -51,9 +52,28 @@ inputs:
   use_bundler:
     description: "Run Brakeman with bundle exec. Default: `false`"
     default: 'false'
+  mode:
+    description: |
+      Run mode:
+      - `full` (default): Run Brakeman and report all findings using reviewdog annotations on the pull request.
+      - `diff`: Run Brakeman on both the base and PR commits, and fail only if new warnings are introduced in changed Ruby files.
+    default: 'full'
+
 runs:
   using: 'composite'
   steps:
+    - name: Extract PR metadata
+      shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "MERGE_BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
+        echo "MERGE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> $GITHUB_ENV
+
+        changed_files="$(gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path')"
+        changed_ruby_files="$(echo "$changed_files" | grep -v '^vendor/' | grep '\.rb$' || true)"
+        echo "CHANGED_RUBY_FILES=$(echo "$changed_ruby_files" | tr '\n' ':' )" >> $GITHUB_ENV
+
     - run: $GITHUB_ACTION_PATH/script.sh
       shell: sh
       env:
@@ -71,6 +91,11 @@ runs:
         INPUT_WORKDIR: ${{ inputs.workdir }}
         INPUT_SKIP_INSTALL: ${{ inputs.skip_install }}
         INPUT_USE_BUNDLER: ${{ inputs.use_bundler }}
+        INPUT_MODE: ${{ inputs.mode }}
+        MERGE_BASE_REF: ${{ env.MERGE_BASE_REF }}
+        MERGE_BASE_SHA: ${{ env.MERGE_BASE_SHA }}
+        CHANGED_RUBY_FILES: ${{ env.CHANGED_RUBY_FILES }}
+
 branding:
   icon: 'check-circle'
   color: 'red'
